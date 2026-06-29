@@ -1,0 +1,21 @@
+{
+  "name": "MergeMint Contracts",
+  "image": "mcr.microsoft.com/devcontainers/rust:latest",
+  "postCreateCommand": "rustup target add wasm32-unknown-unknown && cargo install stellar-cli --locked",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
+        "editor.formatOnSave": true,
+        "[rust]": {
+          "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        }
+      }
+    }
+  },
+  "forwardPorts": []
+}

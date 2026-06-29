@@ -2,7 +2,7 @@
 #![cfg(test)]
 
 use soroban_sdk::{
-    testutils::{Address as _, Ledger as _},
+    testutils::{Address as _, Budget as _, Ledger as _},
     token::StellarAssetClient,
     Address, BytesN, Env, Symbol,
 };
@@ -568,6 +568,130 @@ fn test_bounty_already_assigned_when_at_capacity() {
     // Verify the bounty is at capacity
     let bounty = client.get_bounty(&bounty_id).unwrap();
     assert_eq!(bounty.assignees.len(), 1);
+}
+
+// ===========================================================================
+// Issue #289: CPU instruction count benchmarks
+// ===========================================================================
+
+#[test]
+fn benchmark_create_bounty_instruction_count() {
+    let (env, creator, _contributor, _verifier) = setup_test();
+    let contract_id = env.register_contract(None, MergeMintContract);
+    let client = MergeMintContractClient::new(&env, &contract_id);
+    let reward_token = Address::generate(&env);
+
+    env.budget().reset_default();
+    let _id = client.create_bounty(
+        &creator,
+        &Symbol::new(&env, "bench_c"),
+        &Symbol::new(&env, "bench_d"),
+        &1000,
+        &reward_token,
+        &0,
+        &None,
+    );
+    let cpu = env.budget().cpu_instruction_count();
+    println!("create_bounty: {} CPU instructions", cpu);
+    assert!(cpu < 1_000_000, "create_bounty exceeded 1M instructions: {}", cpu);
+}
+
+#[test]
+fn benchmark_claim_bounty_instruction_count() {
+    let (env, creator, contributor, _verifier) = setup_test();
+    let contract_id = env.register_contract(None, MergeMintContract);
+    let client = MergeMintContractClient::new(&env, &contract_id);
+    let reward_token = Address::generate(&env);
+
+    let bounty_id = client.create_bounty(
+        &creator,
+        &Symbol::new(&env, "bench_claim"),
+        &Symbol::new(&env, "bench_d"),
+        &1000,
+        &reward_token,
+        &0,
+        &None,
+    );
+
+    env.budget().reset_default();
+    client.claim_bounty(&contributor, &bounty_id);
+    let cpu = env.budget().cpu_instruction_count();
+    println!("claim_bounty: {} CPU instructions", cpu);
+    assert!(cpu < 1_000_000, "claim_bounty exceeded 1M instructions: {}", cpu);
+}
+
+#[test]
+fn benchmark_get_bounty_instruction_count() {
+    let (env, creator, _contributor, _verifier) = setup_test();
+    let contract_id = env.register_contract(None, MergeMintContract);
+    let client = MergeMintContractClient::new(&env, &contract_id);
+    let reward_token = Address::generate(&env);
+
+    let bounty_id = client.create_bounty(
+        &creator,
+        &Symbol::new(&env, "bench_get"),
+        &Symbol::new(&env, "bench_d"),
+        &1000,
+        &reward_token,
+        &0,
+        &None,
+    );
+
+    env.budget().reset_default();
+    let _ = client.get_bounty(&bounty_id);
+    let cpu = env.budget().cpu_instruction_count();
+    println!("get_bounty: {} CPU instructions", cpu);
+    assert!(cpu < 500_000, "get_bounty exceeded 500K instructions: {}", cpu);
+}
+
+#[test]
+fn benchmark_get_contributor_instruction_count() {
+    let (env, creator, contributor, verifier) = setup_test();
+    let contract_id = env.register_contract(None, MergeMintContract);
+    let client = MergeMintContractClient::new(&env, &contract_id);
+    let reward_token = Address::generate(&env);
+
+    let bounty_id = client.create_bounty(
+        &creator,
+        &Symbol::new(&env, "bench_contrib"),
+        &Symbol::new(&env, "bench_d"),
+        &1000,
+        &reward_token,
+        &0,
+        &None,
+    );
+    client.claim_bounty(&contributor, &bounty_id);
+    client.complete_bounty(&verifier, &bounty_id);
+
+    env.budget().reset_default();
+    let _ = client.get_contributor(&contributor);
+    let cpu = env.budget().cpu_instruction_count();
+    println!("get_contributor: {} CPU instructions", cpu);
+    assert!(cpu < 500_000, "get_contributor exceeded 500K instructions: {}", cpu);
+}
+
+#[test]
+fn benchmark_get_bounty_count_instruction_count() {
+    let (env, creator, _contributor, _verifier) = setup_test();
+    let contract_id = env.register_contract(None, MergeMintContract);
+    let client = MergeMintContractClient::new(&env, &contract_id);
+    let reward_token = Address::generate(&env);
+
+    client.create_bounty(
+        &creator,
+        &Symbol::new(&env, "bench_cnt"),
+        &Symbol::new(&env, "bench_d"),
+        &1000,
+        &reward_token,
+        &0,
+        &None,
+    );
+
+    env.budget().reset_default();
+    let _ = client.get_bounty_count();
+    let cpu = env.budget().cpu_instruction_count();
+    println!("get_bounty_count: {} CPU instructions", cpu);
+    assert!(cpu < 500_000, "get_bounty_count exceeded 500K instructions: {}", cpu);
 }
 
 #[test]

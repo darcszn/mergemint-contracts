@@ -221,10 +221,33 @@ If a bounty or contributor profile is not accessed for an extended period, its e
 
 ### TTL Extension Strategy
 
-Currently, MergeMint does not extend TTLs within contract logic. Future versions should:
+MergeMint automatically extends TTLs on every read and write of persistent storage entries. This is implemented in `src/storage.rs` using two constants:
 
-- Extend entry TTLs on each access (read or write)
-- Implement a separate TTL management contract function
-- Document expected uptime requirements for contracts
+```rust
+// ~1 year at 5 seconds/ledger: 365 * 24 * 3600 / 5 = 6_307_200
+const STORAGE_TTL_LEDGERS: u32 = 6_307_200;
+// Extend when remaining TTL drops below half a year
+const STORAGE_TTL_THRESHOLD: u32 = STORAGE_TTL_LEDGERS / 2;
+```
 
-For production deployments, monitor entry access patterns and explicitly extend TTLs before expiration.
+Every `get` and `set` on persistent storage calls:
+
+```rust
+env.storage().persistent().extend_ttl(&key, STORAGE_TTL_THRESHOLD, STORAGE_TTL_LEDGERS);
+```
+
+This means:
+- On **write**: the entry is extended to 1 year immediately after being stored.
+- On **read**: if the remaining TTL has fallen below 6 months, it is extended back to 1 year.
+
+The following entries are covered:
+
+| Key | Functions |
+|-----|-----------|
+| `DataKey::BountyCount` | `get_bounty_count`, `set_bounty_count` |
+| `DataKey::Bounty(id)` | `get_bounty`, `store_bounty` |
+| `DataKey::Contributor(address)` | `get_contributor`, `store_contributor` |
+| `DataKey::StatusIndex(status)` | `get_bounties_by_status`, `set_bounties_by_status` |
+| `DataKey::OpenBounties` | `get_open_bounties`, `set_open_bounties` |
+
+`DataKey::BountyMeta` uses **temporary** storage (metadata is only needed during the bounty creation window) and does not require TTL extension.
